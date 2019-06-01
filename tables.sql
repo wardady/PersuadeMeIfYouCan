@@ -1,4 +1,4 @@
-CREATE TABLE user(id int PRIMARY KEY AUTO_INCREMENT, id_tl int, sex BOOLEAN not null, age int not null)
+CREATE TABLE user(id int PRIMARY KEY AUTO_INCREMENT, id_tl long, sex BOOLEAN not null, age int not null)
 
 CREATE TABLE question(id int PRIMARY KEY AUTO_INCREMENT, name varchar(255), category varchar(255))
 
