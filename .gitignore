@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 api_key.py
 .idea/
+database.sql
 
 # C extensions
 *.so
