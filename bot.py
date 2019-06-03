@@ -56,7 +56,6 @@ def process_sex(x):
         try:
             cursor.execute(
                 f"insert into user (id_tl, username, sex) values ({chat_id}, '{x.from_user.first_name}' , {text})")
-            cursor.execute("select * from user;")
         except mysql.connector.Error as error:
             print(error)
         connection.commit()
@@ -80,7 +79,6 @@ def process_age(message):
         age = int(message.text)
         try:
             cursor.execute(f"UPDATE user SET age={age} where id_tl={chat_id}")
-            cursor.execute("select * from user;")
         except mysql.connector.Error as error:
             print(error)
         connection.commit()
@@ -169,31 +167,46 @@ def private_query(query):
         msg = temp_msg(chat_id=query.message.chat.id, text=topic)
         question_generator(msg)
     elif reply in ['yes', 'no']:
-        connection = get_connection()
-        cursor = connection.cursor(buffered=True)
         try:
+            connection = get_connection()
+            cursor = connection.cursor(buffered=True)
             cursor.execute(
                 f"select id from question where name='{query.message.text}'")
             q_id = cursor.fetchone()[0]
-
             cursor.execute(
                 f"select * from response where question_id={q_id} and {reply}_id is null;")
             opponent = cursor.fetchone()
-            print("opponent", opponent)
             if opponent is None:
                 cursor.execute(
                     f"INSERT INTO response (question_id, {reply}_id) values ({q_id}, {query.message.chat.id});")
+                connection.commit()
+                connection.close()
+                msg = temp_msg(chat_id=query.message.chat.id, text=topic)
+                question_generator(msg)
             else:
-                cursor.execute(f"delete from response where id = oponent[0]")
-
-            cursor.execute(
-                f"select * from response  where {reply}_id is NULL;")
-            print(cursor.fetchall())
-
+                if opponent[2] is None:
+                    yes = query.message.chat.id
+                    no = opponent[3]
+                    id_op = no
+                else:
+                    yes = opponent[2]
+                    no = query.message.chat.id
+                    id_op = yes
+                cursor.execute(f"delete from response where id = {opponent[0]}")
+                cursor.execute(
+                    f"insert into storage (question_id,yes_id,no_id)values ({q_id},{yes},{no})")
+                connection.commit()
+                connection.close()
+                new_msg = bot.send_message(query.message.chat.id,
+                                           "We found you an opponent on statement '" + query.message.text + "'. Please, provide your argument, which will be forwarded to your opponent:")
+                bot.register_next_step_handler(new_msg, forward_message, id_op)
         except mysql.connector.Error as error:
             print(error)
-        connection.commit()
-        connection.close()
+
+
+def forward_message(message, id_op):
+    chat_id = message.chat.id
+    bot.forward_message(id_op, chat_id, message.message_id)
 
 
 @bot.message_handler(func=lambda x: True)
