@@ -175,18 +175,21 @@ def private_query(query):
             cursor.execute(
                 f"select id from question where name='{query.message.text}'")
             q_id = cursor.fetchone()[0]
+
             cursor.execute(
-                f"select * from response where (question_id={q_id} and '{reply}_id' is null);")
+                f"select * from response where question_id={q_id} and {reply}_id is null;")
             opponent = cursor.fetchone()
-            print(opponent)
+            print("opponent", opponent)
             if opponent is None:
-                print("query.message.chat.id", query.message.chat.id)
-                print(type(reply))
-                print(reply)
                 cursor.execute(
-                    f"INSERT INTO response (question_id, '{reply}_id') values ({q_id}, {query.message.chat.id});")
+                    f"INSERT INTO response (question_id, {reply}_id) values ({q_id}, {query.message.chat.id});")
             else:
                 cursor.execute(f"delete from response where id = oponent[0]")
+
+            cursor.execute(
+                f"select * from response  where {reply}_id is NULL;")
+            print(cursor.fetchall())
+
         except mysql.connector.Error as error:
             print(error)
         connection.commit()
