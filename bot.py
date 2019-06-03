@@ -212,7 +212,3 @@ def forward_message(message, id_op):
 @bot.message_handler(func=lambda x: True)
 def echo_all(x):
     bot.reply_to(x, "Sorry, not supported action " + x.text)
-
-
-bot.polling()
-updates = bot.get_updates()

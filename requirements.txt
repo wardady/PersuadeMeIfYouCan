@@ -2,3 +2,5 @@ pyTelegramBotAPI
 emoji
 mysql-connector
 mysql
+flask
+gunicorn
