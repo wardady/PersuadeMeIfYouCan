@@ -10,6 +10,8 @@ man_emoji = emojize(":man:")
 woman_emoji = emojize(":woman:")
 
 
+
+
 # noinspection PyUnreachableCode
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -18,7 +20,7 @@ def send_welcome(message):
     chat_id = message.chat.id
     try:
         cursor.execute(
-            f"select * from user where id_tl = {chat_tl};")
+            f"select * from user where id_tl = {chat_id};")
     except mysql.connector.Error as error:
         print(error)
 
@@ -58,8 +60,14 @@ def process_sex(x):
     markup = telebot.types.ReplyKeyboardMarkup()
     if x.text in (man_emoji, woman_emoji):
         # TODO add sex to user in DB
+        if x.text == man_emoji:
+            text = 1
+        else:
+            text = 0
         try:
-            cursor.execute(f"insert into user (id_tl, username, sex) values ({chat_id}, {x.from_user.first_name} , {x.text})")
+            cursor.execute(f"insert into user (id_tl, username, sex) values ({chat_id}, '{x.from_user.first_name}' , {text})")
+            cursor.execute("select * from user;")
+            print(cursor.fetchall())
         except mysql.connector.Error as error:
             print(error)
         # check if works
@@ -80,6 +88,8 @@ def process_age(message):
         age = int(message.text)
         try:
             cursor.execute(f"UPDATE user SET age={age} where id_tl={chat_id}")
+            cursor.execute("select * from user;")
+            print(cursor.fetchall())
         except mysql.connector.Error as error:
             print(error)
         new_msg = bot.send_message(chat_id,
@@ -94,11 +104,14 @@ def process_age(message):
 def choose_topic(message):
     chat_id = message.chat.id
     # TODO select all topics from DB
+    cursor.execute('select name from category;')
+    topics2 = [topic for topic in cursor.fetchall()]
+
     topics = ['sport', 'politics', 'religion', 'games', 'gender equality', 'very interesting topc', 'one more',
               'for test', 'pls', 'want', 'to', 'die', 'stop']
     markup = telebot.types.ReplyKeyboardMarkup()
-    for topic in topics:
-        markup.add(telebot.types.KeyboardButton(topic))
+    for topic in topics2:
+        markup.add(telebot.types.KeyboardButton(topic[0]))
     new_msg = bot.send_message(chat_id,
                                "Chose the topic:", reply_markup=markup)
     bot.register_next_step_handler(new_msg, __chosen_topic)
@@ -114,13 +127,14 @@ def __chosen_topic(msg):
 def question_generator(message):
     chat_id = message.chat.id
     topic = message.text
+    print(topic)
     # TODO Select all questions with this topic !IMPORTANT CHECK IF NO SUCH QUESTIONS
     try:
-        cursor.execute(f"SELECT * from question where category ={topic}")
+        cursor.execute(f"SELECT name from question where category_name ='{topic}'")
     except mysql.connector.Error as error:
         print(error)
     questions = [q for q in cursor.fetchall()]
-    #questions = ['kek', 'lol']
+
     if questions:
         markup = telebot.types.InlineKeyboardMarkup()
         markup.add(telebot.types.InlineKeyboardButton(emojize(":thumbs_up:"), callback_data='yes ' + topic),
@@ -143,7 +157,11 @@ def private_query(query):
     # TODO GET CONVERSATION IF NEEDED ELSE, POST ANSWER TO DB, CONTINUE AS IN SKIP
     elif reply in ['yes', 'no']:
         try:
-            cursor.execute(f"INSERT INTO response (question_id, {reply}_id) values ()")
+            cursor.execute(f"select id from question where name='{query.message.text}'")
+            q_id = cursor.fetchone()[0]
+            cursor.execute(f"INSERT INTO response (question_id, {reply}_id) values ({q_id}, {query.message.chat.id});")
+            cursor.execute("select * from question;")
+            print(cursor.fetchall())
         except mysql.connector.Error as error:
             print(error)
         pass
