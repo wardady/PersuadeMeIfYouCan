@@ -1,6 +1,6 @@
 import telebot
 import random
-from api_key import private_key, cursor
+from api_key import private_key, get_connection
 from emoji import emojize
 from message import temp_msg
 import mysql.connector
@@ -10,13 +10,10 @@ man_emoji = emojize(":man:")
 woman_emoji = emojize(":woman:")
 
 
-
-
-# noinspection PyUnreachableCode
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # TODO Check if user is in DB if not then add to DB and continue this branch, otherwise *new branch to be written*
-    registered = False
+    connection = get_connection()
+    cursor = connection.cursor()
     chat_id = message.chat.id
     try:
         cursor.execute(
@@ -24,29 +21,21 @@ def send_welcome(message):
     except mysql.connector.Error as error:
         print(error)
 
-    reqistered = cursor.fetchone()
-
-    if reqistered:
-        new_msg = bot.send_message(chat_id, "Hello, let`s make some conversations!")
+    registered = cursor.fetchone()
+    connection.commit()
+    connection.close()
+    if registered:
+        bot.send_message(chat_id,
+                         "Hello, let`s make some conversations!")
         choose_topic(message)
     else:
         markup = telebot.types.ReplyKeyboardMarkup(row_width=2)
-        markup.add(telebot.types.KeyboardButton(man_emoji), telebot.types.KeyboardButton(woman_emoji))
+        markup.add(telebot.types.KeyboardButton(man_emoji),
+                   telebot.types.KeyboardButton(woman_emoji))
         new_msg = bot.send_message(chat_id,
                                    "Hi! You seem to be a new user. Let`s fill some information. Choose your sex:",
                                    reply_markup=markup)
         bot.register_next_step_handler(new_msg, process_sex)
-
-    # if 1:  # TODO if registered
-    #     markup = telebot.types.ReplyKeyboardMarkup(row_width=2)
-    #     markup.add(telebot.types.KeyboardButton(man_emoji), telebot.types.KeyboardButton(woman_emoji))
-    #     new_msg = bot.send_message(chat_id,
-    #                                "Hi! You seem to be a new user. Let`s fill some information. Choose your sex:",
-    #                                reply_markup=markup)
-    #     bot.register_next_step_handler(new_msg, process_sex)
-    # else:  # TODO select all topics from DB
-    #     new_msg = bot.send_message(chat_id, "Hello, let`s make some conversations!")
-    #     choose_topic(message)
 
 
 @bot.message_handler(commands=['help'])
@@ -57,43 +46,47 @@ def send_welcome(message):
 
 def process_sex(x):
     chat_id = x.chat.id
-    markup = telebot.types.ReplyKeyboardMarkup()
     if x.text in (man_emoji, woman_emoji):
-        # TODO add sex to user in DB
+        connection = get_connection()
+        cursor = connection.cursor()
         if x.text == man_emoji:
             text = 1
         else:
             text = 0
         try:
-            cursor.execute(f"insert into user (id_tl, username, sex) values ({chat_id}, '{x.from_user.first_name}' , {text})")
+            cursor.execute(
+                f"insert into user (id_tl, username, sex) values ({chat_id}, '{x.from_user.first_name}' , {text})")
             cursor.execute("select * from user;")
-            print(cursor.fetchall())
         except mysql.connector.Error as error:
             print(error)
-        # check if works
+        connection.commit()
+        connection.close()
         markup = telebot.types.ReplyKeyboardRemove(selective=False)
         new_msg = bot.send_message(chat_id,
                                    "Thanks, now tell me your age (please input only number):",
                                    reply_markup=markup)
         bot.register_next_step_handler(new_msg, process_age)
     else:
-        new_msg = bot.send_message(chat_id, "Ooops... Wrong input, please, choose from the options below.")
+        new_msg = bot.send_message(chat_id,
+                                   "Ooops... Wrong input, please, choose from the options below.")
         bot.register_next_step_handler(new_msg, process_sex)
 
 
 def process_age(message):
     chat_id = message.chat.id
     if str.isalnum(message.text) and 0 < int(message.text) < 100:
-        # TODO add age to DB
+        connection = get_connection()
+        cursor = connection.cursor()
         age = int(message.text)
         try:
             cursor.execute(f"UPDATE user SET age={age} where id_tl={chat_id}")
             cursor.execute("select * from user;")
-            print(cursor.fetchall())
         except mysql.connector.Error as error:
             print(error)
-        new_msg = bot.send_message(chat_id,
-                                   "Registration complete, now we can proceed to conversations!")
+        connection.commit()
+        connection.close()
+        bot.send_message(chat_id,
+                         "Registration complete, now we can proceed to conversations!")
         choose_topic(message)
     else:
         new_msg = bot.send_message(chat_id, "Please, input only number:")
@@ -102,13 +95,13 @@ def process_age(message):
 
 @bot.message_handler(commands=['topic'])
 def choose_topic(message):
+    connection = get_connection()
+    cursor = connection.cursor()
     chat_id = message.chat.id
-    # TODO select all topics from DB
     cursor.execute('select name from category;')
     topics2 = [topic for topic in cursor.fetchall()]
-
-    topics = ['sport', 'politics', 'religion', 'games', 'gender equality', 'very interesting topc', 'one more',
-              'for test', 'pls', 'want', 'to', 'die', 'stop']
+    connection.commit()
+    connection.close()
     markup = telebot.types.ReplyKeyboardMarkup()
     for topic in topics2:
         markup.add(telebot.types.KeyboardButton(topic[0]))
@@ -118,28 +111,48 @@ def choose_topic(message):
 
 
 def __chosen_topic(msg):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute('select name from category;')
+    topics = []
+    query = cursor.fetchall()
+    for resp in query:
+        topics.extend(resp)
+    connection.commit()
+    connection.close()
     chat_id = msg.chat.id
-    markup = telebot.types.ReplyKeyboardRemove(selective=False)
-    bot.send_message(chat_id, "You choose " + msg.text, reply_markup=markup)
-    question_generator(msg)
+    if msg.text in topics:
+        markup = telebot.types.ReplyKeyboardRemove(selective=False)
+        bot.send_message(chat_id, "You choose " + msg.text, reply_markup=markup)
+        question_generator(msg)
+    else:
+        bot.send_message(chat_id, "Oooops... Choose from the options below:")
+        choose_topic(msg)
 
 
 def question_generator(message):
+    connection = get_connection()
+    cursor = connection.cursor()
     chat_id = message.chat.id
     topic = message.text
-    print(topic)
-    # TODO Select all questions with this topic !IMPORTANT CHECK IF NO SUCH QUESTIONS
     try:
-        cursor.execute(f"SELECT name from question where category_name ='{topic}'")
+        cursor.execute(
+            f"SELECT name from question where category_name ='{topic}'")
     except mysql.connector.Error as error:
         print(error)
     questions = [q for q in cursor.fetchall()]
+    connection.commit()
+    connection.close()
 
     if questions:
         markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(telebot.types.InlineKeyboardButton(emojize(":thumbs_up:"), callback_data='yes ' + topic),
-                   telebot.types.InlineKeyboardButton(emojize(":thumbs_down:"), callback_data='no ' + topic),
-                   telebot.types.InlineKeyboardButton(emojize(":left-right_arrow:"), callback_data='skip ' + topic))
+        markup.add(telebot.types.InlineKeyboardButton(emojize(":thumbs_up:"),
+                                                      callback_data='yes ' + topic),
+                   telebot.types.InlineKeyboardButton(emojize(":thumbs_down:"),
+                                                      callback_data='no ' + topic),
+                   telebot.types.InlineKeyboardButton(
+                       emojize(":left-right_arrow:"),
+                       callback_data='skip ' + topic))
         bot.send_message(chat_id, random.choice(questions), reply_markup=markup)
     else:
         bot.send_message(chat_id,
@@ -150,22 +163,34 @@ def question_generator(message):
 @bot.callback_query_handler(lambda q: q.message.chat.type == "private")
 def private_query(query):
     reply, topic = query.data.split()
-    bot.edit_message_reply_markup(query.message.chat.id, query.message.message_id)
+    bot.edit_message_reply_markup(query.message.chat.id,
+                                  query.message.message_id)
     if reply == 'skip':
         msg = temp_msg(chat_id=query.message.chat.id, text=topic)
         question_generator(msg)
-    # TODO GET CONVERSATION IF NEEDED ELSE, POST ANSWER TO DB, CONTINUE AS IN SKIP
     elif reply in ['yes', 'no']:
+        connection = get_connection()
+        cursor = connection.cursor(buffered=True)
         try:
-            cursor.execute(f"select id from question where name='{query.message.text}'")
+            cursor.execute(
+                f"select id from question where name='{query.message.text}'")
             q_id = cursor.fetchone()[0]
-            cursor.execute(f"INSERT INTO response (question_id, {reply}_id) values ({q_id}, {query.message.chat.id});")
-            cursor.execute("select * from question;")
-            print(cursor.fetchall())
+            cursor.execute(
+                f"select * from response where (question_id={q_id} and '{reply}_id' is null);")
+            opponent = cursor.fetchone()
+            print(opponent)
+            if opponent is None:
+                print("query.message.chat.id", query.message.chat.id)
+                print(type(reply))
+                print(reply)
+                cursor.execute(
+                    f"INSERT INTO response (question_id, '{reply}_id') values ({q_id}, {query.message.chat.id});")
+            else:
+                cursor.execute(f"delete from response where id = oponent[0]")
         except mysql.connector.Error as error:
             print(error)
-        pass
-
+        connection.commit()
+        connection.close()
 
 
 @bot.message_handler(func=lambda x: True)
