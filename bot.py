@@ -1,6 +1,8 @@
+import sqlite3
+
 import telebot
 import random
-from api_key import private_key, get_connection
+from api_key import private_key
 from emoji import emojize
 from message import temp_msg
 import mysql.connector
@@ -8,6 +10,9 @@ import mysql.connector
 bot = telebot.TeleBot(private_key)
 man_emoji = emojize(":man:")
 woman_emoji = emojize(":woman:")
+
+def get_connection():
+    return sqlite3.connect("bot.db")
 
 
 @bot.message_handler(commands=['start'])
@@ -169,7 +174,7 @@ def private_query(query):
     elif reply in ['yes', 'no']:
         try:
             connection = get_connection()
-            cursor = connection.cursor(buffered=True)
+            cursor = connection.cursor()
             cursor.execute(
                 f"select id from question where name='{query.message.text}'")
             q_id = cursor.fetchone()[0]
