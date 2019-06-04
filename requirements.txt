@@ -3,3 +3,4 @@ pyTelegramBotAPI
 emoji
 mysql-connector
 mysql
+gunicorn
